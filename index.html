@@ -20,7 +20,7 @@
   }
   header {
     padding: env(safe-area-inset-top) 16px 12px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.9), transparent);
+    background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -71,17 +71,29 @@
     background: #000;
     overflow: hidden;
   }
-  #viewer video, #viewer img {
+  /* Video y canvas overlay ocupan el mismo espacio, alineados */
+  #stage {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     max-width: 100%;
     max-height: 100%;
+  }
+  #video {
+    display: block;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
   }
-  #viewer img { display: none; }
-  #canvas { display: none; }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  #capture { display: none; }
   #controls {
     position: absolute;
     bottom: calc(env(safe-area-inset-bottom) + 24px);
@@ -97,7 +109,7 @@
     font-size: 14px;
     font-weight: 600;
     border: none;
-    background: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.18);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     color: #fff;
@@ -113,26 +125,29 @@
     border-radius: 8px;
     font-size: 11px;
     font-family: ui-monospace, monospace;
-    z-index: 10;
+    z-index: 15;
+    line-height: 1.4;
   }
 </style>
 </head>
 <body>
   <header>
-    <h1>🔍 Detector de Objetos</h1>
+    <h1>🔍 Detector en vivo</h1>
     <span id="status">Listo</span>
   </header>
 
   <div id="welcome">
     <h2>Detección en tiempo real</h2>
-    <p>Apunta tu cámara a personas, objetos, animales y mira las detecciones en vivo.</p>
+    <p>Video fluido + bounding boxes superpuestos. Apunta a personas, animales, objetos cotidianos.</p>
     <button id="startBtn">📷 Iniciar cámara</button>
   </div>
 
   <div id="viewer">
-    <video id="video" autoplay playsinline muted></video>
-    <img id="result" alt="">
-    <canvas id="canvas"></canvas>
+    <div id="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <canvas id="capture"></canvas>
     <div id="stats">— ms</div>
     <div id="controls">
       <button id="toggleBtn">⏸ Pausar</button>
@@ -142,15 +157,50 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const video = $('video'), result = $('result'), canvas = $('canvas');
-const ctx = canvas.getContext('2d');
-let stream = null, running = false, paused = false, lastSent = 0;
-const INTERVAL = 1000; // ms entre frames
+const video = $('video');
+const overlay = $('overlay');
+const capture = $('capture');
+const stage = $('stage');
+const octx = overlay.getContext('2d');
+const cctx = capture.getContext('2d');
+
+let stream = null, running = false, paused = false;
+let lastSent = 0, inflight = false;
+let latestPredictions = [], srcDims = { w: 0, h: 0 };
+let networkMs = 0;
+
+const INFERENCE_INTERVAL = 250; // ms entre frames enviados (~4 fps de inferencia)
+const CAPTURE_WIDTH = 320;      // resize antes de enviar — más rápido
+
+// Paleta de colores estable por clase
+const COLORS = ['#ef4444','#f59e0b','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#84cc16','#f97316','#14b8a6'];
+const colorFor = (cls) => {
+  let h = 0;
+  for (const c of cls) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return COLORS[Math.abs(h) % COLORS.length];
+};
 
 const setStatus = (msg, type = '') => {
   $('status').textContent = msg;
   $('status').className = type;
 };
+
+function fitStage() {
+  // Ajustar tamaño del stage (video + overlay) al viewport manteniendo aspect ratio
+  if (!video.videoWidth) return;
+  const vr = video.videoWidth / video.videoHeight;
+  const wr = window.innerWidth / window.innerHeight;
+  if (wr > vr) {
+    stage.style.height = '100%';
+    stage.style.width = (window.innerHeight * vr) + 'px';
+  } else {
+    stage.style.width = '100%';
+    stage.style.height = (window.innerWidth / vr) + 'px';
+  }
+  // Canvas overlay siempre con resolución nativa del video
+  overlay.width = video.videoWidth;
+  overlay.height = video.videoHeight;
+}
 
 async function start() {
   try {
@@ -160,28 +210,45 @@ async function start() {
       audio: false
     });
     video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+
     $('welcome').style.display = 'none';
     $('viewer').style.display = 'block';
+    fitStage();
+    window.addEventListener('resize', fitStage);
+
     running = true;
     setStatus('● En vivo', 'active');
-    loop();
+
+    // Bucle de inferencia (asíncrono, no bloquea el video)
+    inferenceLoop();
+    // Bucle de render (60fps fluidos)
+    renderLoop();
   } catch (e) {
     setStatus('❌ ' + e.message, 'error');
     alert('Error de cámara: ' + e.message);
   }
 }
 
-async function loop() {
-  if (!running) return;
-  const now = Date.now();
+async function inferenceLoop() {
+  while (running) {
+    if (paused || inflight || !video.videoWidth) {
+      await new Promise(r => setTimeout(r, 50));
+      continue;
+    }
+    const wait = INFERENCE_INTERVAL - (Date.now() - lastSent);
+    if (wait > 0) { await new Promise(r => setTimeout(r, wait)); continue; }
 
-  if (!paused && now - lastSent >= INTERVAL && video.videoWidth > 0) {
-    lastSent = now;
+    lastSent = Date.now();
+    inflight = true;
     const t0 = performance.now();
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const b64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+    // Capturar frame y resize a CAPTURE_WIDTH (mantiene aspect)
+    const scale = CAPTURE_WIDTH / video.videoWidth;
+    capture.width = CAPTURE_WIDTH;
+    capture.height = Math.round(video.videoHeight * scale);
+    cctx.drawImage(video, 0, 0, capture.width, capture.height);
+    const b64 = capture.toDataURL('image/jpeg', 0.6).split(',')[1];
 
     try {
       const r = await fetch('/api/infer', {
@@ -190,22 +257,60 @@ async function loop() {
         body: JSON.stringify({ image: b64 })
       });
       const data = await r.json();
-      const imgB64 = data.outputs?.[0]?.image?.value;
-      if (imgB64) {
-        result.src = 'data:image/jpeg;base64,' + imgB64;
-        result.style.display = 'block';
-        video.style.visibility = 'hidden';
-        const dt = Math.round(performance.now() - t0);
-        $('stats').textContent = `${dt} ms`;
+      networkMs = Math.round(performance.now() - t0);
+
+      if (data.predictions) {
+        latestPredictions = data.predictions;
+        srcDims = { w: data.image.width, h: data.image.height };
+        const infMs = Math.round((data.time || 0) * 1000);
+        $('stats').innerHTML = `${data.predictions.length} obj · ${networkMs}ms total · ${infMs}ms inferencia`;
         setStatus('● En vivo', 'active');
       } else if (data.error || data.message) {
         setStatus('❌ ' + (data.error || data.message), 'error');
       }
     } catch (e) {
       setStatus('❌ ' + e.message, 'error');
+    } finally {
+      inflight = false;
     }
   }
-  requestAnimationFrame(loop);
+}
+
+function renderLoop() {
+  if (!running) return;
+  // Limpiar overlay
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+
+  if (latestPredictions.length && srcDims.w) {
+    // Escalar coordenadas del modelo (espacio CAPTURE_WIDTH) al espacio del video nativo
+    const sx = overlay.width / srcDims.w;
+    const sy = overlay.height / srcDims.h;
+
+    for (const p of latestPredictions) {
+      const w = p.width * sx;
+      const h = p.height * sy;
+      const x = (p.x * sx) - w / 2;
+      const y = (p.y * sy) - h / 2;
+      const color = colorFor(p.class);
+
+      // Box
+      octx.lineWidth = 3;
+      octx.strokeStyle = color;
+      octx.strokeRect(x, y, w, h);
+
+      // Label background
+      const label = `${p.class} ${Math.round(p.confidence * 100)}%`;
+      octx.font = 'bold 16px -apple-system, sans-serif';
+      const tw = octx.measureText(label).width + 12;
+      octx.fillStyle = color;
+      octx.fillRect(x, y - 24, tw, 24);
+
+      // Label text
+      octx.fillStyle = '#fff';
+      octx.fillText(label, x + 6, y - 7);
+    }
+  }
+  requestAnimationFrame(renderLoop);
 }
 
 $('startBtn').onclick = start;
@@ -219,8 +324,7 @@ $('stopBtn').onclick = () => {
   stream?.getTracks().forEach(t => t.stop());
   $('viewer').style.display = 'none';
   $('welcome').style.display = 'flex';
-  result.style.display = 'none';
-  video.style.visibility = 'visible';
+  latestPredictions = [];
   setStatus('Listo');
 };
 </script>
