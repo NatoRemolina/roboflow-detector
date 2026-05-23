@@ -150,6 +150,7 @@
     <canvas id="capture"></canvas>
     <div id="stats">— ms</div>
     <div id="controls">
+      <button id="flipBtn">🔄 Cambiar</button>
       <button id="toggleBtn">⏸ Pausar</button>
       <button id="stopBtn" class="stop">⏹ Detener</button>
     </div>
@@ -168,6 +169,7 @@ let stream = null, running = false, paused = false;
 let lastSent = 0, inflight = false;
 let latestPredictions = [], srcDims = { w: 0, h: 0 };
 let networkMs = 0;
+let currentFacing = 'environment'; // 'environment' = trasera, 'user' = frontal
 
 const INFERENCE_INTERVAL = 250; // ms entre frames enviados (~4 fps de inferencia)
 const CAPTURE_WIDTH = 320;      // resize antes de enviar — más rápido
@@ -206,7 +208,7 @@ async function start() {
   try {
     setStatus('Pidiendo cámara…');
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      video: { facingMode: currentFacing, width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false
     });
     video.srcObject = stream;
@@ -313,7 +315,33 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
+async function switchCamera() {
+  if (!running) return;
+  currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+  setStatus('Cambiando cámara…');
+  try {
+    // Soltar stream actual
+    stream?.getTracks().forEach(t => t.stop());
+    // Pedir nuevo stream con la cámara opuesta
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: currentFacing, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    fitStage();
+    // Limpiar predicciones viejas (eran de la otra cámara)
+    latestPredictions = [];
+    setStatus('● En vivo', 'active');
+  } catch (e) {
+    setStatus('❌ Cámara no disponible', 'error');
+    // Revertir si falló
+    currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+  }
+}
+
 $('startBtn').onclick = start;
+$('flipBtn').onclick = switchCamera;
 $('toggleBtn').onclick = () => {
   paused = !paused;
   $('toggleBtn').textContent = paused ? '▶ Reanudar' : '⏸ Pausar';
