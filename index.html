@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<title>Detector de Objetos</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3NSIgZm9udC1zaXplPSI3MCI+8J+UjTwvdGV4dD48L3N2Zz4=">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: env(safe-area-inset-top) 16px 12px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.9), transparent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 20;
+  }
+  h1 { margin: 12px 0 0; font-size: 17px; font-weight: 600; }
+  #status {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #888;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.5);
+  }
+  #status.active { color: #4ade80; }
+  #status.error { color: #ef4444; }
+  #welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    gap: 16px;
+  }
+  #welcome h2 { font-size: 22px; margin: 0; }
+  #welcome p { color: #888; font-size: 14px; line-height: 1.5; margin: 0; max-width: 280px; }
+  #startBtn {
+    margin-top: 24px;
+    padding: 16px 32px;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 32px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(124,58,237,0.4);
+  }
+  #startBtn:active { transform: scale(0.97); }
+  #viewer {
+    position: relative;
+    flex: 1;
+    display: none;
+    background: #000;
+    overflow: hidden;
+  }
+  #viewer video, #viewer img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  #viewer img { display: none; }
+  #canvas { display: none; }
+  #controls {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom) + 24px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+  }
+  #controls button {
+    padding: 12px 22px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #fff;
+  }
+  #controls button.stop { background: rgba(220,38,38,0.85); }
+  #controls button:active { transform: scale(0.95); }
+  #stats {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 60px);
+    left: 12px;
+    background: rgba(0,0,0,0.6);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🔍 Detector de Objetos</h1>
+    <span id="status">Listo</span>
+  </header>
+
+  <div id="welcome">
+    <h2>Detección en tiempo real</h2>
+    <p>Apunta tu cámara a personas, objetos, animales y mira las detecciones en vivo.</p>
+    <button id="startBtn">📷 Iniciar cámara</button>
+  </div>
+
+  <div id="viewer">
+    <video id="video" autoplay playsinline muted></video>
+    <img id="result" alt="">
+    <canvas id="canvas"></canvas>
+    <div id="stats">— ms</div>
+    <div id="controls">
+      <button id="toggleBtn">⏸ Pausar</button>
+      <button id="stopBtn" class="stop">⏹ Detener</button>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const video = $('video'), result = $('result'), canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+let stream = null, running = false, paused = false, lastSent = 0;
+const INTERVAL = 1000; // ms entre frames
+
+const setStatus = (msg, type = '') => {
+  $('status').textContent = msg;
+  $('status').className = type;
+};
+
+async function start() {
+  try {
+    setStatus('Pidiendo cámara…');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    $('welcome').style.display = 'none';
+    $('viewer').style.display = 'block';
+    running = true;
+    setStatus('● En vivo', 'active');
+    loop();
+  } catch (e) {
+    setStatus('❌ ' + e.message, 'error');
+    alert('Error de cámara: ' + e.message);
+  }
+}
+
+async function loop() {
+  if (!running) return;
+  const now = Date.now();
+
+  if (!paused && now - lastSent >= INTERVAL && video.videoWidth > 0) {
+    lastSent = now;
+    const t0 = performance.now();
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    const b64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+    try {
+      const r = await fetch('/api/infer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64 })
+      });
+      const data = await r.json();
+      const imgB64 = data.outputs?.[0]?.image?.value;
+      if (imgB64) {
+        result.src = 'data:image/jpeg;base64,' + imgB64;
+        result.style.display = 'block';
+        video.style.visibility = 'hidden';
+        const dt = Math.round(performance.now() - t0);
+        $('stats').textContent = `${dt} ms`;
+        setStatus('● En vivo', 'active');
+      } else if (data.error || data.message) {
+        setStatus('❌ ' + (data.error || data.message), 'error');
+      }
+    } catch (e) {
+      setStatus('❌ ' + e.message, 'error');
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+$('startBtn').onclick = start;
+$('toggleBtn').onclick = () => {
+  paused = !paused;
+  $('toggleBtn').textContent = paused ? '▶ Reanudar' : '⏸ Pausar';
+  setStatus(paused ? '⏸ Pausado' : '● En vivo', paused ? '' : 'active');
+};
+$('stopBtn').onclick = () => {
+  running = false;
+  stream?.getTracks().forEach(t => t.stop());
+  $('viewer').style.display = 'none';
+  $('welcome').style.display = 'flex';
+  result.style.display = 'none';
+  video.style.visibility = 'visible';
+  setStatus('Listo');
+};
+</script>
+</body>
+</html>

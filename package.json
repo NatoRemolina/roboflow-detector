@@ -1,0 +1,9 @@
+{
+  "name": "roboflow-mobile-detector",
+  "version": "1.0.0",
+  "description": "Detector de objetos en tiempo real desde iPhone usando Roboflow",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
