@@ -6,181 +6,532 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
-<title>Detector de Objetos</title>
+<title>Detector</title>
+<script defer src="/_vercel/insights/script.js"></script>
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI3NSIgZm9udC1zaXplPSI3MCI+8J+UjTwvdGV4dD48L3N2Zz4=">
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-  body {
-    background: #0a0a0a;
-    color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-    display: flex;
-    flex-direction: column;
-  }
-  header {
-    padding: env(safe-area-inset-top) 16px 12px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    z-index: 20;
-  }
-  h1 { margin: 12px 0 0; font-size: 17px; font-weight: 600; }
-  #status {
-    margin-top: 12px;
-    font-size: 12px;
-    color: #888;
-    padding: 4px 10px;
-    border-radius: 12px;
-    background: rgba(0,0,0,0.5);
-  }
-  #status.active { color: #4ade80; }
-  #status.error { color: #ef4444; }
-  #welcome {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    text-align: center;
-    gap: 16px;
-  }
-  #welcome h2 { font-size: 22px; margin: 0; }
-  #welcome p { color: #888; font-size: 14px; line-height: 1.5; margin: 0; max-width: 280px; }
-  #startBtn {
-    margin-top: 24px;
-    padding: 16px 32px;
-    background: #7c3aed;
-    color: #fff;
-    border: none;
-    border-radius: 32px;
-    font-size: 17px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 8px 24px rgba(124,58,237,0.4);
-  }
-  #startBtn:active { transform: scale(0.97); }
-  #viewer {
-    position: relative;
-    flex: 1;
-    display: none;
-    background: #000;
-    overflow: hidden;
-  }
-  /* Video y canvas overlay ocupan el mismo espacio, alineados */
-  #stage {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    max-width: 100%;
-    max-height: 100%;
-  }
-  #video {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-  #overlay {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-  }
-  #capture { display: none; }
-  #controls {
-    position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 24px);
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 12px;
-    z-index: 10;
-  }
-  #controls button {
-    padding: 12px 22px;
-    border-radius: 24px;
-    font-size: 14px;
-    font-weight: 600;
-    border: none;
-    background: rgba(255,255,255,0.18);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    color: #fff;
-  }
-  #controls button.stop { background: rgba(220,38,38,0.85); }
-  #controls button:active { transform: scale(0.95); }
-  #stats {
-    position: absolute;
-    top: calc(env(safe-area-inset-top) + 60px);
-    left: 12px;
-    background: rgba(0,0,0,0.6);
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    z-index: 15;
-    line-height: 1.4;
-  }
+:root {
+  --accent:      #5b5bd6;
+  --accent-dim:  rgba(91,91,214,0.15);
+  --surface:     rgba(255,255,255,0.05);
+  --border:      rgba(255,255,255,0.08);
+  --text:        #ffffff;
+  --text-sec:    rgba(255,255,255,0.60);
+  --text-muted:  rgba(255,255,255,0.35);
+  --danger:      rgba(220,38,38,0.90);
+  --lambda:      #B5FF00;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  background: #0a0a0a;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Animations ── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-7px) scale(1.05); }
+}
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+@keyframes scanMove {
+  0%, 100% { transform: translateY(-20px); opacity: 0.3; }
+  50%       { transform: translateY(20px);  opacity: 0.85; }
+}
+@keyframes nodeGlow {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+@keyframes panelItemIn {
+  from { opacity: 0; transform: translateX(-10px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes statsFlash {
+  0%   { border-color: var(--lambda); color: var(--lambda); }
+  100% { border-color: var(--border); color: var(--text-muted); }
+}
+
+/* ── Header ── */
+header {
+  padding: env(safe-area-inset-top, 20px) 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+h1 {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+#status {
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 4px 11px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  letter-spacing: 0.01em;
+}
+#status.active {
+  color: #4ade80;
+  animation: statusPulse 2.2s ease-in-out infinite;
+}
+#status.error { color: #f87171; }
+
+/* ── Welcome ── */
+#welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 36px;
+  text-align: center;
+  transition: opacity 0.4s ease;
+}
+.hero-icon {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 32px;
+  animation:
+    fadeSlideUp 0.7s ease both 0.05s,
+    heroFloat 4s ease-in-out infinite 0.8s;
+}
+.scan-group {
+  animation: scanMove 2.8s ease-in-out infinite;
+  transform-origin: 55px 55px;
+}
+.node-dot {
+  animation: nodeGlow 2.8s ease-in-out infinite;
+}
+.node-dot:nth-child(2) { animation-delay: 0.2s; }
+.node-dot:nth-child(3) { animation-delay: 0.4s; }
+.node-dot:nth-child(4) { animation-delay: 0.6s; }
+#welcome h2 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+  animation: fadeSlideUp 0.7s ease both 0.15s;
+}
+#welcome p {
+  color: var(--text-sec);
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.65;
+  margin: 0 0 40px;
+  max-width: 260px;
+  animation: fadeSlideUp 0.7s ease both 0.25s;
+}
+#startBtn {
+  padding: 15px 36px;
+  background: transparent;
+  color: var(--text);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  border-radius: 32px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+  animation: fadeSlideUp 0.7s ease both 0.35s;
+}
+#startBtn:hover {
+  border-color: var(--lambda);
+  color: var(--lambda);
+}
+#startBtn:active {
+  background: var(--surface);
+  border-color: rgba(255,255,255,0.4);
+  transform: scale(0.97);
+}
+
+/* ── Research badge ── */
+.research-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(181,255,0,0.25);
+  background: rgba(181,255,0,0.06);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lambda);
+  margin-bottom: 20px;
+  animation: fadeSlideUp 0.7s ease both 0s;
+}
+.research-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lambda);
+  animation: statusPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── Brand credit ── */
+.brand {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.brand-tag {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--lambda);
+  text-align: center;
+  animation: fadeSlideUp 0.7s ease both 0.45s;
+}
+.brand-credit {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+  animation: fadeSlideUp 0.7s ease both 0.55s;
+}
+.brand-credit strong { color: var(--text-sec); font-weight: 600; }
+.brand-credit:hover  { color: var(--lambda); }
+.brand-credit:hover strong { color: var(--lambda); }
+
+/* ── Viewer ── */
+#viewer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: #000;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+#viewer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+#stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+}
+#video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+#overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+#capture { display: none; }
+
+/* ── Detection panel ── */
+#panel {
+  position: absolute;
+  left: 12px;
+  top: calc(env(safe-area-inset-top, 20px) + 64px);
+  width: 178px;
+  background: rgba(8,8,8,0.82);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  z-index: 15;
+  transform: translateX(-210px);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), opacity 0.3s ease;
+}
+#panel.visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+.panel-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 9px;
+}
+.panel-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+
+/* Active objects */
+#objectList { display: flex; flex-direction: column; gap: 8px; }
+.obj-item { display: flex; align-items: center; gap: 7px; }
+.obj-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+.obj-info { flex: 1; min-width: 0; }
+.obj-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.obj-bar-wrap {
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.obj-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.25s ease;
+}
+.obj-conf {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Session history */
+#sessionHistory { display: flex; flex-direction: column; gap: 5px; }
+.hist-item { display: flex; align-items: center; gap: 6px; }
+.hist-emoji { font-size: 12px; flex-shrink: 0; }
+.hist-bar-wrap {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.hist-bar {
+  height: 100%;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.hist-count {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 18px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Stats chip ── */
+#stats {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 20px) + 64px);
+  right: 12px;
+  background: rgba(8,8,8,0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  color: var(--text-muted);
+  z-index: 15;
+  line-height: 1.4;
+  text-align: right;
+}
+
+/* ── Controls ── */
+#controls {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 16px) + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+#controls button {
+  padding: 11px 18px;
+  border-radius: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: rgba(10,10,10,0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--text-sec);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+#controls button:active {
+  transform: scale(0.95);
+  background: rgba(255,255,255,0.09);
+}
+#controls button.stop {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+#controls button.stop:active { background: rgba(239,68,68,0.95); }
 </style>
 </head>
 <body>
-  <header>
-    <h1>🔍 Detector en vivo</h1>
-    <span id="status">Listo</span>
-  </header>
 
-  <div id="welcome">
-    <h2>Detección en tiempo real</h2>
-    <p>Video fluido + bounding boxes superpuestos. Apunta a personas, animales, objetos cotidianos.</p>
-    <button id="startBtn">📷 Iniciar cámara</button>
+<header>
+  <h1><span style="color:var(--lambda)">λ</span> Detector</h1>
+  <span id="status">Listo</span>
+</header>
+
+<div id="welcome">
+  <span class="research-badge">En investigación · Visual AI</span>
+  <svg class="hero-icon" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Corner brackets -->
+    <path d="M14 36 L14 14 L36 14" stroke="#B5FF00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M74 14 L96 14 L96 36" stroke="#B5FF00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M14 74 L14 96 L36 96" stroke="#B5FF00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M74 96 L96 96 L96 74" stroke="#B5FF00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Inner detection rect (dashed) -->
+    <rect x="30" y="30" width="50" height="50" stroke="rgba(181,255,0,0.2)" stroke-width="1" stroke-dasharray="3 6" rx="1"/>
+    <!-- Corner nodes -->
+    <circle class="node-dot" cx="30" cy="30" r="2" fill="#B5FF00"/>
+    <circle class="node-dot" cx="80" cy="30" r="2" fill="#B5FF00"/>
+    <circle class="node-dot" cx="30" cy="80" r="2" fill="#B5FF00"/>
+    <circle class="node-dot" cx="80" cy="80" r="2" fill="#B5FF00"/>
+    <!-- Scan line (animated) -->
+    <g class="scan-group">
+      <line x1="18" y1="55" x2="92" y2="55" stroke="#B5FF00" stroke-width="6"   opacity="0.07"/>
+      <line x1="18" y1="55" x2="92" y2="55" stroke="#B5FF00" stroke-width="0.8" opacity="1"/>
+    </g>
+    <!-- Center focus -->
+    <circle cx="55" cy="55" r="5"   stroke="#B5FF00" stroke-width="0.5" fill="none" opacity="0.35"/>
+    <circle cx="55" cy="55" r="1.8" fill="#B5FF00"/>
+    <!-- Lambda -->
+    <text x="55" y="48" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="300" fill="#B5FF00" opacity="0.55" letter-spacing="1">DETECT</text>
+  </svg>
+  <h2>Detección en vivo</h2>
+  <p>Apunta la cámara a cualquier entorno y observa cómo la inteligencia artificial reconoce el mundo — objeto por objeto, en tiempo real.</p>
+  <p style="font-size:12px;color:var(--text-muted);font-weight:300;margin:0 0 0;max-width:260px;line-height:1.6;animation:fadeSlideUp 0.7s ease both 0.3s;">Desarrollando las mejores tecnologías de visión por computadora para transformar la forma en que las empresas perciben su entorno.</p>
+  <button id="startBtn">Iniciar cámara</button>
+  <div class="brand">
+    <span class="brand-tag">Hacia el futuro de la visión por computadora</span>
+    <a class="brand-credit" href="https://lambdaanalytics.co/" target="_blank" rel="noopener">
+      Hecho por <strong>Lambda Analytics</strong>
+    </a>
+  </div>
+</div>
+
+<div id="viewer">
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <canvas id="capture"></canvas>
+
+  <div id="panel">
+    <div class="panel-label">Detectando</div>
+    <div id="objectList"></div>
+    <div class="panel-divider"></div>
+    <div class="panel-label">Esta sesión</div>
+    <div id="sessionHistory"></div>
   </div>
 
-  <div id="viewer">
-    <div id="stage">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="overlay"></canvas>
-    </div>
-    <canvas id="capture"></canvas>
-    <div id="stats">— ms</div>
-    <div id="controls">
-      <button id="flipBtn">🔄 Cambiar</button>
-      <button id="toggleBtn">⏸ Pausar</button>
-      <button id="stopBtn" class="stop">⏹ Detener</button>
-    </div>
+  <div id="stats">—</div>
+
+  <div id="controls">
+    <button id="flipBtn">⟳ Cámara</button>
+    <button id="toggleBtn">⏸ Pausar</button>
+    <button id="stopBtn" class="stop">⏹ Detener</button>
   </div>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
-const video = $('video');
+const video   = $('video');
 const overlay = $('overlay');
 const capture = $('capture');
-const stage = $('stage');
-const octx = overlay.getContext('2d');
-const cctx = capture.getContext('2d');
+const stage   = $('stage');
+const octx    = overlay.getContext('2d');
+const cctx    = capture.getContext('2d');
 
 let stream = null, running = false, paused = false;
 let lastSent = 0, inflight = false;
 let latestPredictions = [], srcDims = { w: 0, h: 0 };
 let networkMs = 0;
-let currentFacing = 'environment'; // 'environment' = trasera, 'user' = frontal
+let currentFacing = 'environment';
+let audioCtx = null;
 
-const INFERENCE_INTERVAL = 250; // ms entre frames enviados (~4 fps de inferencia)
-const CAPTURE_WIDTH = 320;      // resize antes de enviar — más rápido
+let prevClasses  = new Set();
+let sessionCount = new Map();
+let boxAlpha     = new Map(); // class → 0-1 fade alpha
 
-// Paleta de colores estable por clase
-const COLORS = ['#ef4444','#f59e0b','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#84cc16','#f97316','#14b8a6'];
-const colorFor = (cls) => {
+const INFERENCE_INTERVAL = 250;
+const CAPTURE_WIDTH = 320;
+
+// Refined palette (softer, more premium)
+const COLORS = ['#818cf8','#34d399','#fb923c','#f472b6','#60a5fa','#a78bfa','#4ade80','#fbbf24','#e879f9','#2dd4bf'];
+const colorFor = cls => {
   let h = 0;
   for (const c of cls) h = (h * 31 + c.charCodeAt(0)) | 0;
   return COLORS[Math.abs(h) % COLORS.length];
 };
+
+// COCO-80 class → emoji
+const EMOJI = {
+  person:'👤', bicycle:'🚲', car:'🚗', motorcycle:'🏍', airplane:'✈️',
+  bus:'🚌', train:'🚆', truck:'🚚', boat:'⛵', 'traffic light':'🚦',
+  'fire hydrant':'🚒', 'stop sign':'🛑', 'parking meter':'🅿️', bench:'🪑',
+  bird:'🐦', cat:'🐱', dog:'🐕', horse:'🐴', sheep:'🐑', cow:'🐄',
+  elephant:'🐘', bear:'🐻', zebra:'🦓', giraffe:'🦒', backpack:'🎒',
+  umbrella:'☂️', handbag:'👜', tie:'👔', suitcase:'🧳', frisbee:'🥏',
+  skis:'🎿', snowboard:'🏂', 'sports ball':'⚽', kite:'🪁',
+  'baseball bat':'🏏', 'baseball glove':'🧤', skateboard:'🛹',
+  surfboard:'🏄', 'tennis racket':'🎾', bottle:'🍾', 'wine glass':'🍷',
+  cup:'☕', fork:'🍴', knife:'🔪', spoon:'🥄', bowl:'🥣',
+  banana:'🍌', apple:'🍎', sandwich:'🥪', orange:'🍊', broccoli:'🥦',
+  carrot:'🥕', 'hot dog':'🌭', pizza:'🍕', donut:'🍩', cake:'🎂',
+  chair:'🪑', couch:'🛋️', 'potted plant':'🪴', bed:'🛏️',
+  'dining table':'🍽️', toilet:'🚽', tv:'📺', laptop:'💻',
+  mouse:'🖱️', remote:'📱', keyboard:'⌨️', 'cell phone':'📱',
+  microwave:'📡', oven:'🍳', toaster:'🍞', sink:'🚿',
+  refrigerator:'🧊', book:'📚', clock:'🕐', vase:'🏺',
+  scissors:'✂️', 'teddy bear':'🧸', 'hair drier':'💨', toothbrush:'🪥'
+};
+const emojiFor = cls => EMOJI[cls] || '📦';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const setStatus = (msg, type = '') => {
   $('status').textContent = msg;
@@ -188,21 +539,124 @@ const setStatus = (msg, type = '') => {
 };
 
 function fitStage() {
-  // Ajustar tamaño del stage (video + overlay) al viewport manteniendo aspect ratio
   if (!video.videoWidth) return;
   const vr = video.videoWidth / video.videoHeight;
   const wr = window.innerWidth / window.innerHeight;
   if (wr > vr) {
     stage.style.height = '100%';
-    stage.style.width = (window.innerHeight * vr) + 'px';
+    stage.style.width  = (window.innerHeight * vr) + 'px';
   } else {
-    stage.style.width = '100%';
+    stage.style.width  = '100%';
     stage.style.height = (window.innerWidth / vr) + 'px';
   }
-  // Canvas overlay siempre con resolución nativa del video
-  overlay.width = video.videoWidth;
+  overlay.width  = video.videoWidth;
   overlay.height = video.videoHeight;
 }
+
+// Rounded rect polyfill for canvas (Safari <15.4 safety)
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Audio & haptic feedback ───────────────────────────────────────────────────
+
+function ping() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.1);
+  } catch {}
+}
+
+function triggerFeedback() {
+  ping();
+  try { navigator.vibrate?.(30); } catch {}
+}
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
+
+function updatePanel(predictions) {
+  const currentClasses = new Set(predictions.map(p => p.class));
+
+  // Capturar clases nuevas ANTES de actualizar prevClasses
+  const newClasses = new Set([...currentClasses].filter(c => !prevClasses.has(c)));
+  if (newClasses.size > 0) {
+    triggerFeedback();
+    // Flash del chip de stats
+    $('stats').style.animation = 'none';
+    requestAnimationFrame(() => {
+      $('stats').style.animation = 'statsFlash 0.6s ease forwards';
+    });
+  }
+  prevClasses = currentClasses;
+
+  // Session counters
+  for (const cls of currentClasses) {
+    sessionCount.set(cls, (sessionCount.get(cls) || 0) + 1);
+  }
+
+  // Show / hide panel
+  if (predictions.length > 0) $('panel').classList.add('visible');
+  else                         $('panel').classList.remove('visible');
+
+  // Active objects — one row per class, highest-confidence instance
+  const byClass = new Map();
+  for (const p of predictions) {
+    if (!byClass.has(p.class) || p.confidence > byClass.get(p.class).confidence) {
+      byClass.set(p.class, p);
+    }
+  }
+  const sorted = [...byClass.values()].sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  $('objectList').innerHTML = sorted.map((p, i) => {
+    const conf = Math.round(p.confidence * 100);
+    const anim = newClasses.has(p.class)
+      ? `animation: panelItemIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both ${i * 60}ms`
+      : '';
+    return `<div class="obj-item" style="${anim}">
+      <span class="obj-emoji">${emojiFor(p.class)}</span>
+      <div class="obj-info">
+        <div class="obj-name">${p.class}</div>
+        <div class="obj-bar-wrap"><div class="obj-bar" style="width:${conf}%"></div></div>
+      </div>
+      <span class="obj-conf">${conf}%</span>
+    </div>`;
+  }).join('');
+
+  // Session history — top 5 by count
+  if (sessionCount.size > 0) {
+    const maxCount = Math.max(...sessionCount.values());
+    const top5 = [...sessionCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    $('sessionHistory').innerHTML = top5.map(([cls, count]) =>
+      `<div class="hist-item">
+        <span class="hist-emoji">${emojiFor(cls)}</span>
+        <div class="hist-bar-wrap">
+          <div class="hist-bar" style="width:${Math.round((count / maxCount) * 100)}%"></div>
+        </div>
+        <span class="hist-count">${count}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+// ── Camera lifecycle ──────────────────────────────────────────────────────────
 
 async function start() {
   try {
@@ -214,17 +668,22 @@ async function start() {
     video.srcObject = stream;
     await new Promise(r => video.onloadedmetadata = r);
 
-    $('welcome').style.display = 'none';
-    $('viewer').style.display = 'block';
+    // Registrar sesión activa en Vercel Analytics
+    window.va?.('event', { name: 'camera_started' });
+
+    // Crossfade: welcome fades out, viewer fades in
+    const welcome = $('welcome');
+    welcome.style.opacity = '0';
+    welcome.style.pointerEvents = 'none';
+    $('viewer').classList.add('active');
+    setTimeout(() => { welcome.style.display = 'none'; }, 450);
+
     fitStage();
     window.addEventListener('resize', fitStage);
 
     running = true;
     setStatus('● En vivo', 'active');
-
-    // Bucle de inferencia (asíncrono, no bloquea el video)
     inferenceLoop();
-    // Bucle de render (60fps fluidos)
     renderLoop();
   } catch (e) {
     setStatus('❌ ' + e.message, 'error');
@@ -245,9 +704,9 @@ async function inferenceLoop() {
     inflight = true;
     const t0 = performance.now();
 
-    // Capturar frame y resize a CAPTURE_WIDTH (mantiene aspect)
+    // Capture & resize frame
     const scale = CAPTURE_WIDTH / video.videoWidth;
-    capture.width = CAPTURE_WIDTH;
+    capture.width  = CAPTURE_WIDTH;
     capture.height = Math.round(video.videoHeight * scale);
     cctx.drawImage(video, 0, 0, capture.width, capture.height);
     const b64 = capture.toDataURL('image/jpeg', 0.6).split(',')[1];
@@ -265,8 +724,9 @@ async function inferenceLoop() {
         latestPredictions = data.predictions;
         srcDims = { w: data.image.width, h: data.image.height };
         const infMs = Math.round((data.time || 0) * 1000);
-        $('stats').innerHTML = `${data.predictions.length} obj · ${networkMs}ms total · ${infMs}ms inferencia`;
+        $('stats').textContent = `${data.predictions.length} obj\n${networkMs}ms · ${infMs}ms inf`;
         setStatus('● En vivo', 'active');
+        updatePanel(latestPredictions);
       } else if (data.error || data.message) {
         setStatus('❌ ' + (data.error || data.message), 'error');
       }
@@ -278,51 +738,98 @@ async function inferenceLoop() {
   }
 }
 
+// ── Render loop (60fps, draws bounding boxes on canvas overlay) ──────────────
+
 function renderLoop() {
   if (!running) return;
-  // Limpiar overlay
   octx.clearRect(0, 0, overlay.width, overlay.height);
 
+  const activeKeys = new Set();
+
   if (latestPredictions.length && srcDims.w) {
-    // Escalar coordenadas del modelo (espacio CAPTURE_WIDTH) al espacio del video nativo
-    const sx = overlay.width / srcDims.w;
+    const sx = overlay.width  / srcDims.w;
     const sy = overlay.height / srcDims.h;
 
     for (const p of latestPredictions) {
-      const w = p.width * sx;
-      const h = p.height * sy;
-      const x = (p.x * sx) - w / 2;
-      const y = (p.y * sy) - h / 2;
+      const key   = p.class;
+      activeKeys.add(key);
+
+      // Fade-in: ramp alpha over ~5 frames
+      const alpha = Math.min(1, (boxAlpha.get(key) || 0) + 0.22);
+      boxAlpha.set(key, alpha);
+
+      const bw = p.width  * sx;
+      const bh = p.height * sy;
+      const bx = (p.x * sx) - bw / 2;
+      const by = (p.y * sy) - bh / 2;
       const color = colorFor(p.class);
+      const isNew = alpha < 0.99;
 
-      // Box
-      octx.lineWidth = 3;
-      octx.strokeStyle = color;
-      octx.strokeRect(x, y, w, h);
+      octx.globalAlpha = alpha;
 
-      // Label background
-      const label = `${p.class} ${Math.round(p.confidence * 100)}%`;
-      octx.font = 'bold 16px -apple-system, sans-serif';
-      const tw = octx.measureText(label).width + 12;
+      // Glow en detecciones nuevas
+      if (isNew) {
+        octx.shadowBlur  = (1 - alpha) * 28;
+        octx.shadowColor = color;
+      }
+
+      // Box con efecto de dibujado (stroke-dashoffset en canvas)
+      const perimeter = 2 * (bw + bh);
+      octx.lineWidth      = 1.5;
+      octx.strokeStyle    = color;
+      octx.setLineDash([perimeter]);
+      octx.lineDashOffset = perimeter * (1 - alpha);
+      octx.strokeRect(bx, by, bw, bh);
+      octx.setLineDash([]);
+      octx.shadowBlur = 0;
+
+      // Corner accents (premium feel)
+      const cs = Math.min(12, bw * 0.12, bh * 0.12);
+      octx.lineWidth   = 2.5;
+      octx.strokeStyle = '#fff';
+      octx.globalAlpha = alpha * 0.55;
+      // top-left
+      octx.beginPath(); octx.moveTo(bx, by + cs); octx.lineTo(bx, by); octx.lineTo(bx + cs, by); octx.stroke();
+      // top-right
+      octx.beginPath(); octx.moveTo(bx + bw - cs, by); octx.lineTo(bx + bw, by); octx.lineTo(bx + bw, by + cs); octx.stroke();
+      // bottom-left
+      octx.beginPath(); octx.moveTo(bx, by + bh - cs); octx.lineTo(bx, by + bh); octx.lineTo(bx + cs, by + bh); octx.stroke();
+      // bottom-right
+      octx.beginPath(); octx.moveTo(bx + bw - cs, by + bh); octx.lineTo(bx + bw, by + bh); octx.lineTo(bx + bw, by + bh - cs); octx.stroke();
+
+      // Label pill
+      octx.globalAlpha = alpha;
+      const label = `${p.class}  ${Math.round(p.confidence * 100)}%`;
+      octx.font = '500 12px -apple-system, sans-serif';
+      const tw = octx.measureText(label).width + 14;
+      const lh = 20, lr = 5;
+      const lx = bx, ly = by - lh - 5;
       octx.fillStyle = color;
-      octx.fillRect(x, y - 24, tw, 24);
+      roundRect(octx, lx, ly, tw, lh, lr);
+      octx.fill();
 
-      // Label text
       octx.fillStyle = '#fff';
-      octx.fillText(label, x + 6, y - 7);
+      octx.fillText(label, lx + 7, ly + lh - 5);
     }
+    octx.globalAlpha = 1;
   }
+
+  // Remove alpha entries for classes that are no longer detected
+  for (const key of boxAlpha.keys()) {
+    if (!activeKeys.has(key)) boxAlpha.delete(key);
+  }
+
   requestAnimationFrame(renderLoop);
 }
+
+// ── Controls ──────────────────────────────────────────────────────────────────
 
 async function switchCamera() {
   if (!running) return;
   currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
   setStatus('Cambiando cámara…');
   try {
-    // Soltar stream actual
     stream?.getTracks().forEach(t => t.stop());
-    // Pedir nuevo stream con la cámara opuesta
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: currentFacing, width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false
@@ -330,31 +837,40 @@ async function switchCamera() {
     video.srcObject = stream;
     await new Promise(r => video.onloadedmetadata = r);
     fitStage();
-    // Limpiar predicciones viejas (eran de la otra cámara)
     latestPredictions = [];
     setStatus('● En vivo', 'active');
   } catch (e) {
     setStatus('❌ Cámara no disponible', 'error');
-    // Revertir si falló
     currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
   }
 }
 
+function stopSession() {
+  running = false;
+  stream?.getTracks().forEach(t => t.stop());
+  latestPredictions = [];
+  prevClasses.clear();
+  sessionCount.clear();
+  boxAlpha.clear();
+  $('panel').classList.remove('visible');
+
+  // Crossfade: viewer fades out, welcome fades in
+  const welcome = $('welcome');
+  $('viewer').classList.remove('active');
+  welcome.style.display = 'flex';
+  welcome.style.pointerEvents = 'auto';
+  requestAnimationFrame(() => { welcome.style.opacity = '1'; });
+  setStatus('Listo');
+}
+
 $('startBtn').onclick = start;
-$('flipBtn').onclick = switchCamera;
+$('flipBtn').onclick  = switchCamera;
 $('toggleBtn').onclick = () => {
   paused = !paused;
   $('toggleBtn').textContent = paused ? '▶ Reanudar' : '⏸ Pausar';
   setStatus(paused ? '⏸ Pausado' : '● En vivo', paused ? '' : 'active');
 };
-$('stopBtn').onclick = () => {
-  running = false;
-  stream?.getTracks().forEach(t => t.stop());
-  $('viewer').style.display = 'none';
-  $('welcome').style.display = 'flex';
-  latestPredictions = [];
-  setStatus('Listo');
-};
+$('stopBtn').onclick = stopSession;
 </script>
 </body>
 </html>

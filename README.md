@@ -1,103 +1,114 @@
-# Detector de Objetos Móvil — Roboflow
+# Real-Time Object Detection — Lambda Analytics
 
-App web que abre tu cámara y detecta objetos en tiempo real usando un workflow de Roboflow. La API key vive en el servidor (variable de entorno), nunca se expone al cliente.
+> **Hacia el futuro de la visión por computadora.**  
+> Solución de detección de objetos en tiempo real sobre dispositivos móviles, construida por el equipo de AI Engineering de **[Lambda Analytics](https://lambdaanalytics.co/)**.
+
+---
+
+## ¿Qué es esto?
+
+Una aplicación web progresiva (PWA) que convierte cualquier dispositivo móvil en un sistema de visión por computadora en tiempo real. Captura video de la cámara, ejecuta inferencia sobre un modelo COCO pre-entrenado (80 clases) y superpone los bounding boxes detectados directamente sobre el stream de video — sin instalar nada, sin fricción para el usuario final.
+
+Diseñada para demostrar las capacidades de computer vision de Lambda Analytics en entornos de cliente.
+
+---
 
 ## Arquitectura
 
 ```
-iPhone (Safari)                Vercel (tu hosting)              Roboflow Cloud
-─────────────────              ───────────────────              ──────────────
-1. Captura frame ─POST /api/infer─►
-                                2. Lee ROBOFLOW_API_KEY
-                                3. Reenvía a Roboflow ─────────► 4. Inferencia
-                                5. Recibe predicción ◄──────────
-                ◄── imagen anotada ── 6. Devuelve al cliente
-7. Muestra resultado
+Dispositivo móvil          Vercel Edge (Serverless)        Roboflow Cloud
+──────────────────         ────────────────────────        ──────────────
+ Captura frame JPEG  ───►  POST /api/infer                 Modelo COCO/8
+ (~320px, 60ms)            + ROBOFLOW_API_KEY  ─────────►  80 clases
+                           (nunca sale al cliente)          ~70ms inferencia
+                    ◄───   Predicciones JSON   ◄─────────
+ Canvas overlay
+ a 60fps (RAF)
 ```
 
-## Estructura del proyecto
+**Dos loops desacoplados:**
+- `inferenceLoop` — envía un frame cada 250ms (4 fps de inferencia), asíncrono
+- `renderLoop` — dibuja bounding boxes a 60fps sobre canvas, sin bloquear el video
+
+Esto garantiza video fluido independientemente de la latencia de red.
+
+---
+
+## Stack técnico
+
+| Capa | Tecnología | Decisión de diseño |
+|------|-----------|-------------------|
+| Frontend | HTML/CSS/JS vanilla | Cero dependencias, carga instantánea |
+| Backend | Vercel Serverless (Node 18) | API key segura en entorno, no en cliente |
+| Modelo | Roboflow COCO/8 | 80 clases, ~70ms, sin GPU local |
+| Deploy | Vercel CDN global | HTTPS, headers de seguridad, sin configuración |
+| UI | Canvas API + CSS animations | Sin frameworks, 60fps garantizados |
+
+---
+
+## Capacidades
+
+- **Detección de 80 clases COCO** — personas, vehículos, animales, objetos cotidianos
+- **Bounding boxes con fade-in** — animación suave al aparecer nuevas detecciones
+- **Panel de objetos activos** — lista en tiempo real con emoji, barra de confianza y porcentaje
+- **Historial de sesión** — top 5 clases más detectadas con gráfico proporcional
+- **Feedback háptico + audio** — vibración y ping sonoro al detectar una clase nueva
+- **Toggle cámara frontal/trasera** — sin recargar la página
+- **Diseño PWA** — instalable en pantalla de inicio de iPhone
+
+---
+
+## Seguridad implementada
 
 ```
-roboflow-app/
-├── index.html        ← Frontend (público, NO contiene la API key)
-├── api/
-│   └── infer.js      ← Serverless function (proxy, usa la API key del entorno)
-├── package.json
-├── vercel.json       ← Configuración Vercel (headers de seguridad)
-├── .env.example      ← Plantilla de variables
-└── .gitignore
+✅ API key exclusivamente en variable de entorno del servidor
+✅ Validación de método HTTP y estructura del body en el backend
+✅ Headers: X-Content-Type-Options · Referrer-Policy · Permissions-Policy: camera=(self)
+✅ Cache-Control: no-store en todos los endpoints de inferencia
+✅ .env ignorado por git — nunca expuesto en historial
 ```
 
-## Deploy en Vercel — 5 minutos
-
-### 1. Crear cuenta y proyecto
-
-1. Ve a [vercel.com](https://vercel.com) y crea una cuenta (puedes usar GitHub)
-2. Instala Vercel CLI: `npm i -g vercel`
-
-### 2. Configurar variables de entorno
-
-En la terminal, desde la carpeta del proyecto:
-
-```bash
-cd /tmp/roboflow-app
-vercel login
-vercel link
-vercel env add ROBOFLOW_API_KEY production
-# pega tu Private API Key cuando lo pida
-
-vercel env add ROBOFLOW_WORKSPACE production
-# pega: natalias-workspace-q1def
-
-vercel env add ROBOFLOW_WORKFLOW production
-# pega: demo-objetos-cotidianos-1779560839102
-```
-
-### 3. Deploy
-
-```bash
-vercel --prod
-```
-
-Te dará una URL como `https://roboflow-detector-xxx.vercel.app`. Esa es la URL que comparte con quien quieras.
-
-### 4. Generar QR
-
-Cuando tengas la URL, genera un QR en cualquier generador (qr-code-generator.com) con esa URL. Cualquier persona que escanee el QR abre la app pre-configurada — no tiene que poner ninguna API key.
+---
 
 ## Desarrollo local
 
 ```bash
+# 1. Clonar y configurar credenciales
 cp .env.example .env.local
-# edita .env.local con tu API key real
-vercel dev
-# abre http://localhost:3000
+# Editar .env.local con la API key de Roboflow
+
+# 2. Iniciar servidor local con hot-reload
+npx vercel dev
+
+# 3. Abrir en el navegador
+open http://localhost:3000
 ```
 
-## Seguridad — buenas prácticas implementadas
+---
 
-✅ API key en variable de entorno (nunca en el código frontend)
-✅ Backend valida método HTTP y forma del body
-✅ Headers de seguridad: `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`
-✅ No cachea respuestas del API (`Cache-Control: no-store`)
-✅ `.env` ignorado por git
+## Deploy a producción
 
-## Mejoras opcionales para producción
+```bash
+vercel env add ROBOFLOW_API_KEY production
+vercel --prod
+```
 
-- **Rate limiting**: añadir Vercel KV o Upstash Redis para limitar requests por IP
-- **Auth**: proteger el endpoint con un token o login si no quieres que sea público
-- **Monitoring**: usar Vercel Analytics para tracking
-- **CDN para imágenes**: si recibieras muchos requests, comprimir más agresivo
+La URL resultante funciona directamente en cualquier dispositivo móvil con Safari o Chrome. Para distribución interna: generar QR y compartir — sin instalación requerida.
 
-## Cómo usarlo desde el iPhone
+---
 
-1. Abre la URL de Vercel en Safari del iPhone
-2. Toca **📷 Iniciar cámara**, acepta el permiso
-3. Apunta a objetos y mira las detecciones
-4. Para usarlo como app: **Compartir → Añadir a pantalla de inicio**
+## Estructura del proyecto
 
-## Costos
+```
+roboflow-detector/
+├── index.html          Frontend completo (PWA, sin dependencias)
+├── api/
+│   └── infer.js        Serverless proxy — protege la API key
+├── vercel.json         Headers de seguridad + configuración de funciones
+├── .env.example        Plantilla de variables de entorno
+└── .gitignore
+```
 
-- **Vercel:** gratis hasta 100 GB/mes de bandwidth (más que suficiente)
-- **Roboflow:** consume créditos de tu workspace por cada inferencia
-- Monitorea: Roboflow Settings → Usage
+---
+
+**Lambda Analytics** · [lambdaanalytics.co](https://lambdaanalytics.co/) · Creamos Futuro
