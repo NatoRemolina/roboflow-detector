@@ -19,7 +19,7 @@
   --text-sec:    rgba(255,255,255,0.60);
   --text-muted:  rgba(255,255,255,0.35);
   --danger:      rgba(220,38,38,0.90);
-  --lambda:      #B5FF00;
+  --accent:      #B5FF00;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -58,7 +58,7 @@ body {
   to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 @keyframes statsFlash {
-  0%   { border-color: var(--lambda); color: var(--lambda); }
+  0%   { border-color: var(--accent); color: var(--accent); }
   100% { border-color: var(--border); color: var(--text-muted); }
 }
 
@@ -157,8 +157,8 @@ h1 {
   animation: fadeSlideUp 0.7s ease both 0.35s;
 }
 #startBtn:hover {
-  border-color: var(--lambda);
-  color: var(--lambda);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 #startBtn:active {
   background: var(--surface);
@@ -179,7 +179,7 @@ h1 {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lambda);
+  color: var(--accent);
   margin-bottom: 20px;
   animation: fadeSlideUp 0.7s ease both 0s;
 }
@@ -188,7 +188,7 @@ h1 {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lambda);
+  background: var(--accent);
   animation: statusPulse 2s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -205,7 +205,7 @@ h1 {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--lambda);
+  color: var(--accent);
   text-align: center;
   animation: fadeSlideUp 0.7s ease both 0.45s;
 }
@@ -217,8 +217,8 @@ h1 {
   animation: fadeSlideUp 0.7s ease both 0.55s;
 }
 .brand-credit strong { color: var(--text-sec); font-weight: 600; }
-.brand-credit:hover  { color: var(--lambda); }
-.brand-credit:hover strong { color: var(--lambda); }
+.brand-credit:hover  { color: var(--accent); }
+.brand-credit:hover strong { color: var(--accent); }
 
 /* ── Viewer ── */
 #viewer {
@@ -411,7 +411,7 @@ h1 {
 <body>
 
 <header>
-  <h1><span style="color:var(--lambda)">λ</span> Detector</h1>
+  <h1>Detector</h1>
   <span id="status">Listo</span>
 </header>
 
@@ -438,7 +438,7 @@ h1 {
     <!-- Center focus -->
     <circle cx="55" cy="55" r="5"   stroke="#B5FF00" stroke-width="0.5" fill="none" opacity="0.35"/>
     <circle cx="55" cy="55" r="1.8" fill="#B5FF00"/>
-    <!-- Lambda -->
+    <!-- Label -->
     <text x="55" y="48" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="300" fill="#B5FF00" opacity="0.55" letter-spacing="1">DETECT</text>
   </svg>
   <h2>Detección en vivo</h2>
@@ -447,9 +447,9 @@ h1 {
   <button id="startBtn">Iniciar cámara</button>
   <div class="brand">
     <span class="brand-tag">Hacia el futuro de la visión por computadora</span>
-    <a class="brand-credit" href="https://lambdaanalytics.co/" target="_blank" rel="noopener">
-      Hecho por <strong>Lambda Analytics</strong>
-    </a>
+    <span class="brand-credit">
+      Hecho por <strong>Natalia Remolina</strong>
+    </span>
   </div>
 </div>
 

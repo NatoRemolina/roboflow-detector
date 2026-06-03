@@ -1,7 +1,7 @@
-# Real-Time Object Detection — Lambda Analytics
+# Real-Time Object Detection
 
 > **Hacia el futuro de la visión por computadora.**  
-> Solución de detección de objetos en tiempo real sobre dispositivos móviles, construida por el equipo de AI Engineering de **[Lambda Analytics](https://lambdaanalytics.co/)**.
+> Solución de detección de objetos en tiempo real sobre dispositivos móviles, construida por **Natalia Remolina**.
 
 ---
 
@@ -9,7 +9,7 @@
 
 Una aplicación web progresiva (PWA) que convierte cualquier dispositivo móvil en un sistema de visión por computadora en tiempo real. Captura video de la cámara, ejecuta inferencia sobre un modelo COCO pre-entrenado (80 clases) y superpone los bounding boxes detectados directamente sobre el stream de video — sin instalar nada, sin fricción para el usuario final.
 
-Diseñada para demostrar las capacidades de computer vision de Lambda Analytics en entornos de cliente.
+Diseñada para demostrar capacidades de computer vision en tiempo real en entornos móviles.
 
 ---
 
@@ -111,4 +111,4 @@ roboflow-detector/
 
 ---
 
-**Lambda Analytics** · [lambdaanalytics.co](https://lambdaanalytics.co/) · Creamos Futuro
+**Natalia Remolina**
