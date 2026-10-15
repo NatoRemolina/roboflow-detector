@@ -106,8 +106,13 @@ roboflow-detector/
 │   └── infer.js        Serverless proxy — protege la API key
 ├── vercel.json         Headers de seguridad + configuración de funciones
 ├── .env.example        Plantilla de variables de entorno
-└── .gitignore
+├── .gitignore
+└── LICENSE
 ```
+
+## Licencia
+
+Publicado bajo [licencia MIT](LICENSE).
 
 ---
 
